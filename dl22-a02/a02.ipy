@@ -1,0 +1,555 @@
+# coding: utf-8
+#
+# IE 678 Deep Learning, University of Mannheim
+# Author: Rainer Gemulla
+
+# <codecell>
+import torch
+import torch.nn as nn
+import torchvision
+import matplotlib
+import matplotlib.pyplot as plt
+import os
+import numpy as np
+
+from IPython import get_ipython
+from helper import *
+from util import nextplot
+
+get_ipython().magic("matplotlib")
+
+# <codecell>
+# Use GPU if CUDA is available
+DATA_PATH = "data/"
+MODEL_PATH = "data/"
+DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+
+# <codecell>
+# To prevent from retraining models, you can save them to disk and load them
+# later on
+def save(model, filename):
+    torch.save(model.state_dict(), os.path.join(MODEL_PATH, filename))
+
+
+def load(model, filename):
+    model.load_state_dict(torch.load(os.path.join(MODEL_PATH, filename)))
+    return model
+
+
+# <markdowncell>
+# # 1 Convolutional Neural Networks
+
+# <markdowncell>
+# ## Load the data
+
+# <codecell>
+X, y, Xtest, ytest = load_dataset("fashionmnist")
+class_dict = {
+    0: "t-shirt/top",
+    1: "trouser",
+    2: "pullover",
+    3: "dress",
+    4: "coat",
+    5: "sandal",
+    6: "shirt",
+    7: "sneaker",
+    8: "bag",
+    9: "ankle boot",
+}
+print(f"{len(X)} training examples")
+print(f"{len(Xtest)} test examples")
+
+# <codecell>
+def show_image(x):
+    "Show one (or multiple) 28x28 MNIST images as a gray-scale image."
+    plt.imshow(x.reshape(-1, 28).cpu(), cmap="gray", interpolation="none")
+
+
+# Plot first 5 training examples. Each example consists of a 1x28x28 tensor with values
+# in [0,1] and a label
+nextplot()
+show_image(X[:5])
+for i in range(5):
+    print(f"Label of example i={i}: {class_dict[y[i].item()]}")
+
+
+# <markdowncell>
+# ## 1a+b Implement a CNN model
+
+# <codecell>
+# Here is a PyTorch version of logistic regression.
+class LogisticRegression(nn.Module):
+    def __init__(self, num_features):
+        super().__init__()
+        self.linear = nn.Linear(num_features, 1)
+        self.sigmoid = nn.Sigmoid()
+
+    def forward(self, x):
+        out = self.linear(x.float())
+        out = self.sigmoid(out)
+        return out
+
+
+# <codecell>
+# Implement a simple CNN
+class SimpleCNN(nn.Module):
+    def __init__(self):
+        super().__init__()
+        # Create the required layers/function and store them as instance variables
+        # YOUR CODE HERE
+
+    def forward(self, x):
+        """
+        Perform the forward pass.
+
+        Parameters
+        ----------
+        x: tensor of shape (batch_size, 1, 28, 28)
+
+        Returns
+        -------
+        model output as a tensor of shape (batch_size, 10)
+        """
+        out = None
+        # Use the layers/functions created above to compute model output
+        # YOUR CODE HERE
+
+        return out
+
+
+# <codecell>
+# here is a description of what you created (this uses the member variables)
+print(SimpleCNN())
+
+# SimpleCNN(
+#   (layer1): Sequential(
+#     (0): Conv2d(1, 32, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+#     (1): Sigmoid()
+#     (2): MaxPool2d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=False)
+#   )
+#   (fc1): Linear(in_features=6272, out_features=10, bias=True)
+#   (log_softmax): LogSoftmax()
+# )
+
+# <codecell>
+# One way to see the parameters of your model is to look at its "state". Check that the
+# shapes of the parameters that you see here match your computations of task 1a).
+model = SimpleCNN().to(DEVICE)
+model.state_dict()
+
+# <codecell>
+# Run the forward pass on the first 5 examples.
+with torch.no_grad():  # tell torch to not compute backward graph
+    print(model(X[:5]))
+
+# <codecell>
+# Plot training (or test) examples, their correct labels, and the most likely model
+# predictions. Do not be worried if your (untrained) model always seems to predict the
+# same class.
+@torch.no_grad()
+def mnist_predict(model, start, end=None, use_test_data=False):
+    if end is None:
+        end = start + 1
+    if use_test_data:
+        images = Xtest[start:end].to(DEVICE)
+        labels = ytest[start:end].to(DEVICE)
+    else:
+        images = X[start:end].to(DEVICE)
+        labels = y[start:end].to(DEVICE)
+    nextplot()
+    show_image(images)
+    print("     Labels:", [class_dict[label.item()] for label in labels])
+    out = model(images)
+    _, yhat = torch.max(out, 1)
+    print("Predictions:", [class_dict[pred.item()] for pred in yhat])
+
+
+# first 5 examples from training + predictions
+mnist_predict(model, 0, 5)
+
+# <markdowncell>
+# ## 1c Evaluate model performance
+
+# <codecell>
+# test model
+@torch.no_grad()
+def mnist_test(model, batch_size=100, reshape_1d=False):
+    """
+    Function to test your CNN on test data
+
+    Parameters
+    ----------
+
+    model: trained CNN from task 1a
+    batch_size: size of batch for dataloader
+    reshape_1d: Reshape images to a 1d vectors (allows use of models other than CNNs
+                such as fully-connected FNNs)
+
+    Returns
+    -------
+    accuracy of input model
+    """
+    correct = 0  # number of correct predictions
+    total = 0  # total number of examples
+    model.eval()  # set layers like dropout and batch norm to eval mode
+
+    # Create test data loader
+    if reshape_1d:
+        dataset = torch.utils.data.TensorDataset(Xtest.reshape(len(Xtest), -1), ytest)
+    else:
+        dataset = torch.utils.data.TensorDataset(Xtest, ytest)
+    test_loader = torch.utils.data.DataLoader(
+        dataset, batch_size=batch_size, shuffle=False
+    )
+
+    # Loop over data
+    for batch in test_loader:
+        # YOUR CODE HERE
+        # Update correct and total using the examples in the batch. To understand what a
+        # DataLoader does, have a look at the contents of "batch" before you start.
+        pass
+
+    accuracy = (correct / total) * 100
+    print("Accuracy on {} test images: {} %".format(total, accuracy))
+    return accuracy
+
+
+# <codecell>
+# Test your code. Output should be: 6.97%
+class DummyModel(nn.Module):
+    def forward(self, x):
+        return x.reshape(len(x), -1)[:, 200:210] * torch.arange(10).to(DEVICE)
+
+
+mnist_test(DummyModel().to(DEVICE))
+
+
+# <markdowncell>
+# ## 1d Train a model
+
+# <codecell>
+# train model
+def mnist_train(
+    model, num_epochs=5, learning_rate=0.001, batch_size=100, reshape_1d=False
+):
+    """
+    Function to train the provided CNN network.
+
+    Parameters
+    ----------
+    model: the model to train
+    num_epochs: number of epochs to train
+    learning_rate: learning rate to use
+    batch_size: size of batch for data loader
+    reshape_1d: Reshape images to a 1d vectors (allows use of models other than CNNs
+                such as fully-connected FNNs)
+    """
+    # YOUR CODE HERE
+
+    return model
+
+
+# <markdowncell>
+# ## 1e Train and evaluate the simple CNN model
+
+# <codecell>
+# Train a model.
+model = mnist_train(SimpleCNN().to(DEVICE))
+# save(model, "simple_cnn.pt")
+
+# <codecell>
+# Test a model. The simple CNN should perform much better after training.
+# model = load(SimpleCNN(), "simple_cnn.pt").to(DEVICE)
+mnist_test(model)
+
+# <markdowncell>
+# ## 1e Sandbox
+
+# <codecell>
+# try adding more layers, regularization, etc.
+class MyCnn(nn.Module):
+    def __init__(self):
+        super(MyCnn, self).__init__()
+        # YOUR CODE HERE
+
+    def forward(self, x):
+        out = None
+        # YOUR CODE HERE
+
+        return out
+
+
+# <codecell>
+my_cnn = MyCnn().to(DEVICE)
+
+# <codecell>
+# train
+mnist_train(my_cnn)
+# save(my_cnn, "my_cnn.pt")
+
+# <codecell>
+# test
+# my_cnn = load(my_cnn, "my_cnn.pt")
+mnist_test(my_cnn)
+
+
+# <markdowncell>
+# # 2 Recurrent Neural Networks and Pretraining
+
+# <markdowncell>
+# ## Load and preprocess the data
+
+# <codecell>
+# Load review and label data
+with open(os.path.join(DATA_PATH, "reviews_small.txt")) as f:
+    reviews_lines = f.readlines()
+
+with open(os.path.join(DATA_PATH, "labels_small.txt")) as f:
+    label_lines = f.readlines()
+
+print(reviews_lines[0])
+print(label_lines[0])
+
+# <codecell>
+# Remove punctuations from the reviews and split words
+raw_reviews, words, labels = reviews_preprocess(reviews_lines, label_lines)
+print(raw_reviews[0])
+print("First ten words: ", words[:10])
+print("First label: ", labels[0])
+
+# <codecell>
+# Determine an integer id for each unique word
+word_ids = reviews_create_word_ids(words)
+print(word_ids.get("the"))
+print(word_ids.get("movie"))
+
+# <codecell>
+# Encode each word in the review by its unique identifier
+encoded_reviews = reviews_encode(word_ids, raw_reviews)
+print(raw_reviews[0])
+print(encoded_reviews[0])
+
+# <codecell>
+# Padding/truncating all reviews to the same length. Although this isn't strictly
+# necessary, it facilitates batch processing: all inputs of a batch need to have the
+# same length.
+sequence_length = 200
+padded_reviews = reviews_pad(encoded_reviews, sequence_length)
+print(padded_reviews[0])
+
+# <codecell>
+# Split dataset into 80% training, 10% test, and 10% validation Dataset
+train_x, train_y, valid_x, valid_y, test_x, test_y = reviews_split(
+    padded_reviews, labels
+)
+print(len(train_y), len(valid_y), len(test_y))
+
+# <codecell>
+# Create data loaders for training
+train_loader, valid_loader, test_loader = reviews_create_dataloaders(
+    train_x, train_y, valid_x, valid_y, test_x, test_y
+)
+
+
+# <codecell>
+# Here is an example how to use the train and test functions. Note that logistic
+# regression is a bogus model when used like this (since its assigns weights to
+# positions, but not word ids). So results will be bad.
+model = LogisticRegression(sequence_length).to(DEVICE)
+reviews_train(model, train_loader, valid_loader, epochs=3, device=DEVICE)
+reviews_test(model, test_loader, device=DEVICE)
+
+# <markdowncell>
+# ## 2a Define your model
+
+# <codecell>
+# Create an LSTM for sentiment analysis
+class SimpleLSTM(nn.Module):
+    """
+    The RNN model that will be used to perform sentiment analysis.
+    """
+
+    def __init__(
+        self,
+        vocab_size,
+        embedding_dim,
+        hidden_dim,
+        num_layers=1,
+        lstm_dropout_prob=0.5,
+        dropout_prob=0.3,
+    ):
+        """
+        Initialize the model by setting up the layers
+
+        Parameters
+        ----------
+        vocab_size: number of unique words in the reviews
+        embeddings_dim: size of the embeddings
+        hidden_dim: dimension of the LSTM output
+        num_layers: number of LSTM layers
+        lstm_dropout_prob: dropout applied between the LSTM layers
+        dropout_prob: dropout applied before the fully connected layer
+        """
+        super().__init__()
+
+        self.num_layers = num_layers
+        self.hidden_dim = hidden_dim
+
+        # YOUR CODE HERE
+
+    def forward(self, x):
+        """
+        Perform a forward pass of our model on some input and hidden state.
+
+        Parameters
+        ----------
+        x: batch as a (batch_size, sequence_length) tensor
+
+        Returns
+        -------
+        Probability of positive class.
+        """
+        # init hidden layer, which is needed for the LSTM
+        batch_size = len(x)
+        hidden = self.init_hidden(batch_size)
+
+        # YOUR CODE HERE
+
+    def init_hidden(self, batch_size):
+        """
+        Initialize hidden state.
+
+        Returns
+        -------
+        Empty hidden LSTM state.
+        """
+
+        # Create two new tensors with sizes num_layers x batch_size x hidden_dim,
+        # initialized to zero, for hidden state and cell state of LSTM
+        weight = next(self.parameters())  # only used to determine device
+
+        hidden = (
+            weight.new(self.num_layers, batch_size, self.hidden_dim).zero_(),
+            weight.new(self.num_layers, batch_size, self.hidden_dim).zero_(),
+        )
+
+        return hidden
+
+
+# <codecell>
+# Test model setup
+model = SimpleLSTM(1, 10, 32, 2, 0, 0).to(DEVICE)
+print(model)
+
+# SimpleLSTM(
+#   (embedding): Embedding(1, 10)
+#   (lstm): LSTM(10, 32, num_layers=2, batch_first=True, dropout=0.0)
+#   (dropout): Dropout(p=0.0, inplace=False)
+#   (fc): Linear(in_features=32, out_features=1, bias=True)
+#   (sigmoid): Sigmoid()
+# )
+
+# <codecell>
+# Test forward function. 
+# dummy data
+dummy_data = torch.zeros(train_loader.batch_size, sequence_length).long().to(DEVICE)
+# fix model parameters
+for key in model.state_dict():
+    model.state_dict()[key][:] = 0.1
+print(model(dummy_data).reshape(10, -1))
+# Output after reshape should be the following tensor
+#tensor([[0.9643, 0.9643, 0.9643, 0.9643, 0.9643],
+#        [0.9643, 0.9643, 0.9643, 0.9643, 0.9643],
+#        [0.9643, 0.9643, 0.9643, 0.9643, 0.9643],
+#        [0.9643, 0.9643, 0.9643, 0.9643, 0.9643],
+#        [0.9643, 0.9643, 0.9643, 0.9643, 0.9643],
+#        [0.9643, 0.9643, 0.9643, 0.9643, 0.9643],
+#        [0.9643, 0.9643, 0.9643, 0.9643, 0.9643],
+#        [0.9643, 0.9643, 0.9643, 0.9643, 0.9643],
+#        [0.9643, 0.9643, 0.9643, 0.9643, 0.9643],
+#        [0.9643, 0.9643, 0.9643, 0.9643, 0.9643]], device='cuda or cpu',
+#       grad_fn=<ViewBackward>)
+
+# <markdowncell>
+# ## 2b Train and evaluate the model
+
+# <codecell>
+# Instantiate the model w/ hyperparams
+vocab_size = len(word_ids) + 1  # +1 for the 0 padding
+embedding_dim = 100
+hidden_dim = 64
+num_layers = 1
+
+# this may raise a warning when num_layers=1 (which is fine)
+# make sure to reinizialize the model if you want to train multiple times
+model = SimpleLSTM(vocab_size, embedding_dim, hidden_dim, num_layers).to(DEVICE)
+
+# <codecell>
+# Fit and evaluate a model (without pretrained embeddings)
+n_epochs = 5
+# YOUR CODE HERE
+
+# <markdowncell>
+# ## 2c Load pretrained word embeddings
+
+# <codecell>
+@torch.no_grad()
+def reviews_load_embeddings(
+    embedding_layer, word_ids, pretrained_embeddings_file="data/word-embeddings.txt"
+):
+    """Load pretrained embeddings into an embedding layer.
+
+    Updates the weights of the embedding layer with with the embeddings given in the
+    provided word embeddings file.
+
+    Parameters
+    ----------
+    embedding_layer: torch.nn.Embedding used in the model
+    word_ids: dictionary mapping each word to its unique identifier
+    pretrained_embeddings_file: path to the file containing pretrained embeddings
+
+    """
+    print("Initializing embedding layer with pretrained word embeddings...")
+    embeddings_index = dict()
+    words_initialized = 0
+    with open(pretrained_embeddings_file, encoding="utf8") as f:
+        for line in f:
+            values = line.split()
+            word = values[0]
+            encoded_word = word_ids.get(word)
+            if encoded_word is not None:
+                words_initialized += 1
+                embedding_layer.weight[encoded_word, :] = torch.from_numpy(
+                    np.asarray(values[1:], dtype="float32")
+                )
+    print(
+        "Initialized {}/{} word embeddings".format(
+            words_initialized, embedding_layer.num_embeddings
+        )
+    )
+
+
+# <codecell>
+# Try it
+test_embeddings = nn.Embedding(len(word_ids) + 1, 100).to(DEVICE)
+reviews_load_embeddings(test_embeddings, word_ids)
+print(test_embeddings(torch.LongTensor([word_ids.get("movie")]).to(DEVICE)))
+del test_embeddings
+
+# <markdowncell>
+# ## 2d Train and evaluate with pretraining
+
+# <codecell>
+# Fit and evaluate a model with pretrained embeddings without fine-tuning
+# YOUR CODE HERE
+
+# <codecell>
+
+# Fit and evaluate a model with pretrained embeddings with fine-tuning.
+# YOUR CODE HERE
+
+# <markdowncell>
+# ## 2e Sandbox
+
+# <codecell>
+# Explore different architectures and hyperparameters.
