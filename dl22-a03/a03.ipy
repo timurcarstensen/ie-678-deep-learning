@@ -1,0 +1,258 @@
+# coding: utf-8
+#
+# IE 678 Deep Learning, University of Mannheim
+# Author: Rainer Gemulla
+
+# <codecell>
+import matplotlib
+import matplotlib.pyplot as plt
+from matplotlib import cm
+import numpy as np
+import base64
+from sklearn.gaussian_process import GaussianProcessRegressor
+from sklearn.gaussian_process.kernels import RBF, ConstantKernel
+
+from IPython import get_ipython
+from util import nextplot
+
+get_ipython().magic("matplotlib")
+
+# <markdowncell>
+# # 1 Basic Hyperparameter Tuning
+
+# <markdowncell>
+# ## 1a Manual search
+
+# <codecell>
+# This is the function we are going to optimize. Do not look at this function yet (e.g.,
+# do not decode the funciton body and do not evaluate it).
+@np.vectorize
+def f1(*args):
+    x = np.array(args)
+    return eval(
+        base64.b64decode(
+            b"LW5wLnByb2QobnAuc3FydChucC5hYnMoeCkqMTApKm5wLnNpbih4KjEwKSk="
+        )
+    )
+
+
+# <codecell>
+# This helper function plots a number of 2D inputs along with their value.
+def plotp(X, y):
+    if len(X.shape) != 2 or X.shape[1] != 2 or X.shape[0] != len(y):
+        raise ValueError
+
+    x1, x2 = X[:, 0], X[:, 1]
+    plot = plt.scatter(x1, x2, c=y, cmap=matplotlib.cm.coolwarm, s=500)
+    plt.gca().set_aspect("equal")
+    plt.xlim(-0.1, 1.1)
+    plt.ylim(-0.1, 1.1)
+    for i in range(len(X)):
+        plt.text(
+            X[i, 0],
+            X[i, 1],
+            "{:.1f}".format(y[i]),
+            va="center",
+            ha="center",
+            color="white",
+        )
+    plt.colorbar()
+
+
+# <codecell>
+nextplot()
+X = np.array(
+    [
+        [0.5, 0.5],
+        # Add 11 more points, one by one. Note that you can hover your mouse over a
+        # region you'd like to explore to read of the corresponding coordinates.
+        # YOUR CODE HERE
+    ]
+)
+y = f1(X[:, 0], X[:, 1])
+plotp(X, y)
+print(f"Your best trial so far is {np.min(y)} at {X[np.argmin(y),:]}")
+print(f"You have {12-len(X)} trials left.")
+
+# ## 1b Discussion
+# <codecell>
+# After you did a), uncomment these lines to see the true minimum.
+# x_min = np.array(eval(base64.b64decode(b"WzAuNzkxNywwLjc5MTdd")))
+# print(f"True minimum is {f1(*x_min)} at {x_min}.")
+# print(f"You found {np.min(y)} at {X[np.argmin(y),:]}.")
+
+# <codecell>
+def plot3d(f):
+    x1 = np.arange(0, 1, 0.01)
+    x2 = np.arange(0, 1, 0.01)
+    x1, x2 = np.meshgrid(x1, x2)
+    z = f(x1, x2)
+    ax = plt.gcf().add_subplot(projection="3d")
+    ax.plot_surface(x1, x2, z, cmap=matplotlib.cm.coolwarm)
+
+
+# After you did a), uncomment these lines to see the full function as 3d plot.
+# nextplot()
+# plot3d(f1)
+
+# <codecell>
+def plotc(f):
+    x1 = np.arange(0, 1, 0.01)
+    x2 = np.arange(0, 1, 0.01)
+    x1, x2 = np.meshgrid(x1, x2)
+    z = f(x1, x2)
+    plt.contour(x1, x2, z, cmap=matplotlib.cm.coolwarm)
+    plt.gca().set_aspect("equal")
+
+
+# After you did a), uncomment these lines to see the full function as contour plot.
+# nextplot()
+# plotc(f1)
+
+# <markdowncell>
+# ## 1c Grid search
+
+# <codecell>
+# Perform grid search with 12 trials. You may use plotp as above to visualize the
+# results.
+# YOUR CODE HERE
+
+# <markdowncell>
+# ## 1d Random search
+
+# <codecell>
+# Perform a random search with 12 trials.
+# YOUR CODE HERE
+
+# <codecell>
+# Optional: Repeat using a Sobol sequence. You can generate Sobol trials as follows.
+from skopt.sampler import Sobol  # pip install scikit-optimize
+
+sobol = Sobol()
+sobol.generate([(0.0, 1.0), (0.0, 1.0)], 12)
+# YOUR CODE HERE
+
+# <markdowncell>
+# # 2 Gaussian Process Regression
+
+# <markdowncell>
+# ## 2a Kernels
+
+# <codecell>
+# The class of kernels we use in this task. The kernel is a scaled version of an RBF
+# kernel. The argument "fixed" means that the kernel parameters (i.e., scale and
+# length_scale) should not be optimized when fitting a GP with this kernel later.
+def srbf(scale=1.0, length_scale=1.0, fixed=True):
+    if fixed:
+        return ConstantKernel(scale, constant_value_bounds="fixed") * RBF(
+            length_scale, length_scale_bounds="fixed"
+        )
+    else:
+        return ConstantKernel(scale) * RBF(length_scale)
+
+
+# <codecell>
+# Example kernels
+nextplot()
+x_all = np.linspace(-10, 10, 1000)
+for i, scale in enumerate([1, 2, 5]):
+    for j, length_scale in enumerate([0.3, 1, 3]):
+        kernel = srbf(scale, length_scale)
+        plt.plot(
+            x_all,
+            kernel(x_all.reshape(-1, 1), np.array([[0]])),
+            color=f"C{j}",
+            linestyle=["-", "--", ":"][i],
+            label=f"s={scale}, ls={length_scale}",
+        )
+plt.legend()
+
+# <markdowncell>
+# ## 2b GP prior
+
+# <codecell>
+# This creates a GP prior with the default kernel (which is srbf(1,1)).
+gp = GaussianProcessRegressor()
+
+# <codecell>
+# Plot mean +- std_dev of a GP prior or posterior 
+def plot_gp(gp):
+    x_all = np.linspace(0, 1, 1000)
+
+    # plot fit
+    yhat_all, yhat_all_std = gp.predict(x_all.reshape(-1, 1), return_std=True)
+    plt.plot(x_all, yhat_all, color="red")
+    plt.fill_between(
+        x_all, yhat_all - yhat_all_std, yhat_all + yhat_all_std, color="orange"
+    )
+
+nextplot()
+plot_gp(gp)
+
+# <codecell>
+# Sample from a GP.
+# Plot samples from a GP prior or posterior
+def plot_gp_samples(gp, n=100, alpha=0.5):
+    x_all = np.linspace(0, 1, 1000)
+    plt.plot(x_all, gp.sample_y(x_all.reshape(-1,1), n), alpha=alpha)
+
+nextplot()
+plot_gp_samples(gp, 100)
+
+# <codecell>
+# Experiment with different kernels
+# YOUR CODE HERE
+
+# <markdowncell>
+# ## 2c GPR
+
+# <codecell>
+# We are working with this function. With your knowledge of the function, what would be
+# a suitable scale and length scale?
+def f2(x):
+    return np.sin((2.0 * x) ** 5.0) / (x + 1)
+
+def plot_f2():
+    # show function itself
+    x_all = np.linspace(0, 1, 1000)
+    plt.plot(x_all, f2(x_all))
+
+nextplot()
+plot_f2()
+
+
+# <codecell>
+# Plot the posterior distribution of GPR (here using the default kernel)
+x = np.linspace(0, 1, 3)
+y = f2(x)
+gp = GaussianProcessRegressor().fit(x.reshape(-1,1), y)
+
+nextplot()
+plot_f2()
+plt.plot(x,y, "x", color="black")
+plot_gp(gp)
+
+# <codecell>
+# Samples of the posterior can be plotted similarly.
+nextplot()
+plot_f2()
+plt.plot(x,y, "x", color="black")
+plot_gp_samples(gp, 50, alpha=0.1)
+
+# <codecell>
+# Now use your estimated kernel parameters. Discuss.
+# YOUR CODE HERE
+
+# <markdowncell>
+# ## 2d Experimentation
+
+# <codecell>
+# Experiment with different kernels and number of examples.
+# YOUR CODE HERE
+
+
+# <markdowncell>
+# # 3 Bayesian Optimization
+
+# <codecell>
+# YOUR CODE HERE
