@@ -87,7 +87,7 @@ Output: 10 \\
 No. of Parameters: none \\
 \end{enumerate}
 
-Interpretation: log-probabilities for the 10 different classes of clothing.
+Interpretation of the outputs: log-probabilities for the 10 different classes of garments.
 
 \subsection{b)}\label{subsec:cnn-b}
 Cf. Code.
@@ -104,21 +104,28 @@ Cf. Code.
   	\caption{Confusion matrix for the fashion MNIST dataset}
   	\label{fig:f-mnist-conf-mat}
 \end{figure}
-	
+
+\noindent The model achieved an accuracy of 87.29\%. When inspecting the individual classes, we can see that the accuracy varies from 99.2\% to as low as 61.6\%. The model performs the worst on pullovers and t-shirts with accuracies of 61.6\% and 75.9\% respectively. It performs best on sneakers and ankle boots with accuracies of 99.2\% and 98.3\% respectively. The rest of the classes are in the 80\% to 90\% range, with bags also performing particularly well (accuracy: 96.7\%). I would expect the model to perform well on unique shapes and make mistakes on garments that are quite similar in shape. That is, shirts and pullovers are easy to confuse since they have similar shapes and sneakers, ankle boots and bags have (very) distinct shapes as compared with the rest of the garments. This is confirmed in \autoref{fig:f-mnist-conf-mat} where we can see that pullovers are often confused for shirts and coats. Our model can discriminate footwear from non-footwear quite well, though it does have issues distinguishing sandals from sneakers occasionally. These mistakes are reasonable for our model to make since it does not learn anything about the actual meaning of what makes a shirt a shirt or a pullover a pullover. 
 
 
-\newpage
+\subsection{f)}\label{subsec:cnn-f}
+Not attempted.
 
 \section{Recurrent Neural Networks and Pretraining}\label{sec:rnn}
 \subsection{a)}\label{subsec:rnn-a}
 Cf. Code.
 \subsection{b)}\label{subsec:rnn-b}
+We can see that the error on our training set decreases with each subsequent epoch. That is, for our first batch the average training loss is 0.6865 and for our fifth epoch it is 0.3577. However, at the same time, the average loss on our validation set reaches a minimum at around epoch 4 and starts to slightly increase with epoch 5 (0.6657 vs. 0.6667). This indicates that we are overfitting our model on our training data and not converging to a \textit{global} minimum. I suspect this to be because of our embedding layer which we train on our training data. For tokens not encountered in the training set, the corresponding embeddings retain their random initialisations and thus reduce our model's performance in the forward pass on the validation set. This effect may have been lessened if our vocabulary in the training set were larger or if we had more training examples in general. 
+
 
 \subsection{c)}\label{subsec:rnn-c}
+The GloVe \cite{pennington2014glove} embedding file contains word embeddings for 29841 of the 32362 unique word ids in our dataset. In contrast to before, the embeddings are 100-dimensional vectors containing the representations of our words. The "word-embeddings.txt" file is organised in such a way that each row is a key, value pair with the key being the word id and the value being the embedding $\in\mathbb{R}^{100}$. This way, we can match the embeddings to our corpus with the word ids.
 
 \subsection{d)}\label{subsec:rnn-d}
+The first observation that we can make is that the average validation losses of both the RNN with and without finetuning stay constantly below that of the simple RNN. The average training set loss stays above the simple RNN when do not finetune our embeddings and falls below it if we do. The average training loss for the RNN with GloVe embeddings and fine-tuning also decreases much faster than that of the other models. When inspecting the validation loss in the last epoch of the GloVe model with fine-tuning we can see that we are again on an upward trajectory toward the end of the epoch. Hence, we are starting to overfit. The model with GloVe embeddings and without fine-tuning seems to stabilise and converges at an average validation loss of 0.6. We can conjecture that this is the best loss that we can achieve given our embeddings and model design. Better generalisation performance could possibly be achieved by using a larger training set, initialising more (or all) of the word vectors with GloVe embeddings and fine-tuning the model up until we observe an up-tick in validation loss and stop training at that point.
 
 \subsection{e)}\label{subsec:rnn-e}
+
 
 
 \bibliographystyle{alpha}
